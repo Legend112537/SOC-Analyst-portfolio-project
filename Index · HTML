@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ThreatWatch SOC Dashboard | Security Operations Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0c10;
+    --bg2: #0f1117;
+    --bg3: #151820;
+    --bg4: #1c2030;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8ecf4;
+    --text2: #8892a4;
+    --text3: #4a5568;
+    --accent: #00d4aa;
+    --accent2: #0099ff;
+    --red: #ff4757;
+    --orange: #ff6b35;
+    --yellow: #ffd32a;
+    --purple: #9b59b6;
+    --green: #00d4aa;
+    --critical: #ff4757;
+    --high: #ff6b35;
+    --medium: #ffd32a;
+    --low: #00d4aa;
+    --info: #0099ff;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.5;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* SCANLINE EFFECT */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* HEADER */
+  .header {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border2);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    width: 32px;
+    height: 32px;
+    background: var(--accent);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--sans);
+    font-weight: 800;
+    font-size: 14px;
+    color: #0a0c10;
+    flex-shrink: 0;
+  }
+
+  .logo-text {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--text);
+    letter-spacing: -0.3px;
+  }
+
+  .logo-sub {
+    font-size: 10px;
+    color: var(--text3);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-family: var(--mono);
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+
+  .live-dot {
+    width: 7px;
+    height: 7px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+
+  .header-time {
+    font-size: 11px;
+    color: var(--text3);
+    letter-spacing: 1px;
+  }
+
+  .threat-level-badge {
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+
+  .threat-level-badge.elevated {
+    background: rgba(255,107,53,0.15);
+    color: var(--orange);
+    border: 1px solid rgba(255,107,53,0.3);
+  }
+
+  /* LAYOUT */
+  .app {
+    display: flex;
+    height: calc(100vh - 56px);
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    padding: 16px 0;
+    overflow-y: auto;
+  }
+
+  .nav-section {
+    padding: 0 12px;
+    margin-bottom: 24px;
+  }
+
+  .nav-label {
+    font-size: 9px;
+    color: var(--text3);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 0 8px;
+    margin-bottom: 6px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text2);
+    font-size: 12px;
+    transition: all 0.15s;
+    margin-bottom: 2px;
+  }
+
+  .nav-item:hover { background: var(--bg3); color: var(--text); }
+  .nav-item.active { background: rgba(0,212,170,0.1); color: var(--accent); border: 1px solid rgba(0,212,170,0.2); }
+
+  .nav-icon { font-size: 14px; width: 16px; text-align: center; }
+
+  .nav-badge {
+    margin-left: auto;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 10px;
+    background: rgba(255,71,87,0.2);
+    color: var(--red);
+    font-weight: 600;
+  }
+
+  .sidebar-stat {
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
+  }
+
+  .sidebar-stat-label {
+    font-size: 10px;
+    color: var(--text3);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .sidebar-stat-value {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  /* MAIN */
+  .main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    background: var(--bg);
+  }
+
+  /* METRICS ROW */
+  .metrics-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .metric-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+
+  .metric-card.critical::before { background: var(--critical); }
+  .metric-card.high::before { background: var(--high); }
+  .metric-card.medium::before { background: var(--medium); }
+  .metric-card.low::before { background: var(--low); }
+  .metric-card.info::before { background: var(--info); }
+
+  .metric-label {
+    font-size: 9px;
+    color: var(--text3);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .metric-value {
+    font-family: var(--sans);
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .metric-card.critical .metric-value { color: var(--critical); }
+  .metric-card.high .metric-value { color: var(--high); }
+  .metric-card.medium .metric-value { color: var(--yellow); }
+  .metric-card.low .metric-value { color: var(--accent); }
+  .metric-card.info .metric-value { color: var(--info); }
+
+  .metric-change {
+    font-size: 10px;
+    color: var(--text3);
+  }
+
+  .metric-change.up { color: var(--red); }
+  .metric-change.down { color: var(--accent); }
+
+  /* GRID */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .grid-full { margin-bottom: 16px; }
+
+  /* PANEL */
+  .panel {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .panel-title {
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .panel-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .btn-xs {
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    cursor: pointer;
+    border: 1px solid var(--border2);
+    background: var(--bg3);
+    color: var(--text2);
+    font-family: var(--mono);
+    transition: all 0.15s;
+    letter-spacing: 0.5px;
+  }
+
+  .btn-xs:hover { background: var(--bg4); color: var(--text); border-color: var(--accent); }
+
+  .panel-body { padding: 16px; }
+
+  /* ALERT TABLE */
+  .alert-table { width: 100%; border-collapse: collapse; }
+
+  .alert-table th {
+    font-size: 9px;
+    color: var(--text3);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+  }
+
+  .alert-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text2);
+    vertical-align: middle;
+  }
+
+  .alert-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .alert-table tr:last-child td { border-bottom: none; }
+
+  /* SEVERITY BADGE */
+  .sev {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .sev-dot { width: 5px; height: 5px; border-radius: 50%; }
+  .sev.critical { background: rgba(255,71,87,0.15); color: var(--critical); }
+  .sev.critical .sev-dot { background: var(--critical); }
+  .sev.high { background: rgba(255,107,53,0.15); color: var(--orange); }
+  .sev.high .sev-dot { background: var(--orange); }
+  .sev.medium { background: rgba(255,211,42,0.15); color: var(--yellow); }
+  .sev.medium .sev-dot { background: var(--yellow); }
+  .sev.low { background: rgba(0,212,170,0.15); color: var(--accent); }
+  .sev.low .sev-dot { background: var(--accent); }
+
+  /* STATUS */
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+  }
+
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .status.new .status-dot { background: var(--red); animation: pulse 1.5s infinite; }
+  .status.inv .status-dot { background: var(--yellow); }
+  .status.closed .status-dot { background: var(--text3); }
+
+  /* MITRE */
+  .mitre-grid {
+    display: grid;
+    grid-template-columns: repeat(11, 1fr);
+    gap: 3px;
+    padding: 12px;
+  }
+
+  .mitre-tactic {
+    text-align: center;
+  }
+
+  .mitre-tactic-name {
+    font-size: 8px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mitre-tech {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 4px 3px;
+    font-size: 8px;
+    color: var(--text2);
+    margin-bottom: 2px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+    line-height: 1.2;
+  }
+
+  .mitre-tech:hover { background: var(--bg4); border-color: var(--accent); color: var(--accent); }
+  .mitre-tech.active-high { background: rgba(255,71,87,0.2); border-color: rgba(255,71,87,0.5); color: var(--critical); }
+  .mitre-tech.active-med { background: rgba(255,107,53,0.15); border-color: rgba(255,107,53,0.4); color: var(--orange); }
+  .mitre-tech.active-low { background: rgba(255,211,42,0.1); border-color: rgba(255,211,42,0.3); color: var(--yellow); }
+
+  /* GEO THREAT MAP */
+  .geo-list { padding: 8px 0; }
+
+  .geo-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .geo-item:last-child { border-bottom: none; }
+
+  .geo-flag { font-size: 18px; width: 24px; }
+
+  .geo-bar-wrap { flex: 1; }
+
+  .geo-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    margin-bottom: 3px;
+    color: var(--text2);
+  }
+
+  .geo-bar {
+    height: 3px;
+    background: var(--bg4);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .geo-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    transition: width 1.5s ease;
+  }
+
+  .geo-count {
+    font-size: 11px;
+    color: var(--text);
+    font-weight: 600;
+    min-width: 40px;
+    text-align: right;
+  }
+
+  /* IOC TABLE */
+  .ioc-row { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--border); }
+  .ioc-row:last-child { border-bottom: none; }
+  .ioc-type { font-size: 9px; padding: 2px 6px; border-radius: 3px; background: var(--bg3); color: var(--text3); letter-spacing: 1px; text-transform: uppercase; width: 46px; text-align: center; flex-shrink: 0; }
+  .ioc-value { font-size: 11px; color: var(--accent2); font-family: var(--mono); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ioc-tag { font-size: 9px; padding: 2px 6px; border-radius: 3px; background: rgba(255,71,87,0.1); color: var(--red); border: 1px solid rgba(255,71,87,0.2); white-space: nowrap; }
+
+  /* TIMELINE */
+  .timeline { padding: 12px 16px; }
+  .tl-item { display: flex; gap: 12px; padding: 8px 0; position: relative; }
+  .tl-item:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 26px;
+    width: 1px;
+    height: calc(100% - 10px);
+    background: var(--border2);
+  }
+  .tl-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; border: 2px solid var(--bg2); }
+  .tl-content { flex: 1; }
+  .tl-title { font-size: 12px; color: var(--text); margin-bottom: 2px; }
+  .tl-meta { font-size: 10px; color: var(--text3); }
+  .tl-tag { display: inline-block; font-size: 9px; padding: 1px 5px; border-radius: 2px; background: var(--bg3); color: var(--text2); margin-right: 4px; }
+
+  /* CHART CONTAINER */
+  .chart-wrap { position: relative; height: 200px; }
+
+  /* TERMINAL */
+  .terminal {
+    background: #060810;
+    border-radius: 6px;
+    padding: 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.8;
+    border: 1px solid var(--border);
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .term-line { display: flex; gap: 8px; }
+  .term-time { color: var(--text3); flex-shrink: 0; }
+  .term-sev-c { color: var(--critical); }
+  .term-sev-h { color: var(--orange); }
+  .term-sev-m { color: var(--yellow); }
+  .term-msg { color: var(--text2); }
+  .term-host { color: var(--accent2); }
+  .term-ip { color: var(--accent); }
+
+  /* SCORE RING */
+  .score-ring-wrap {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 16px;
+  }
+
+  .score-ring {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    flex-shrink: 0;
+  }
+
+  .score-ring svg { transform: rotate(-90deg); }
+  .score-ring-val {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--sans);
+  }
+
+  .score-num { font-size: 22px; font-weight: 700; color: var(--orange); }
+  .score-max { font-size: 9px; color: var(--text3); }
+
+  .score-details { flex: 1; }
+  .score-detail-item { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 11px; }
+  .score-detail-item:last-child { border-bottom: none; }
+  .score-detail-label { color: var(--text3); }
+  .score-detail-val { color: var(--text); font-weight: 600; }
+
+  /* PLAYBOOK */
+  .playbook { padding: 12px 16px; }
+  .pb-step {
+    display: flex;
+    gap: 12px;
+    padding: 8px 0;
+    align-items: flex-start;
+  }
+  .pb-num {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: var(--accent);
+    flex-shrink: 0;
+    font-weight: 600;
+  }
+  .pb-num.done { background: rgba(0,212,170,0.15); border-color: var(--accent); }
+  .pb-title { font-size: 12px; color: var(--text); margin-bottom: 2px; }
+  .pb-desc { font-size: 10px; color: var(--text3); }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 2px; }
+
+  /* ANIMATE IN */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .metrics-row { animation: fadeUp 0.4s ease both; }
+  .grid-2 { animation: fadeUp 0.5s ease 0.1s both; }
+  .grid-3 { animation: fadeUp 0.5s ease 0.15s both; }
+  .grid-full { animation: fadeUp 0.5s ease 0.2s both; }
+
+  /* SPARKLINE */
+  .sparkline { display: flex; align-items: flex-end; gap: 2px; height: 24px; margin-top: 6px; }
+  .spark-bar { flex: 1; border-radius: 1px; min-height: 2px; transition: height 0.3s; }
+
+  /* SIGMA RULE */
+  .sigma-box {
+    background: #060810;
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    padding: 14px 16px;
+    font-size: 11px;
+    line-height: 1.8;
+    font-family: var(--mono);
+    margin: 12px 16px;
+  }
+
+  .sig-key { color: var(--accent2); }
+  .sig-val { color: var(--yellow); }
+  .sig-str { color: var(--accent); }
+  .sig-comment { color: var(--text3); }
+
+  /* TABS */
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); }
+  .tab {
+    padding: 10px 16px;
+    font-size: 11px;
+    color: var(--text3);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    letter-spacing: 0.5px;
+    transition: all 0.15s;
+  }
+  .tab:hover { color: var(--text2); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* TAG */
+  .tag { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 9px; letter-spacing: 1px; text-transform: uppercase; }
+  .tag-blue { background: rgba(0,153,255,0.1); color: var(--info); border: 1px solid rgba(0,153,255,0.2); }
+  .tag-green { background: rgba(0,212,170,0.1); color: var(--accent); border: 1px solid rgba(0,212,170,0.2); }
+  .tag-red { background: rgba(255,71,87,0.1); color: var(--red); border: 1px solid rgba(255,71,87,0.2); }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="logo">
+    <div class="logo-icon">TW</div>
+    <div>
+      <div class="logo-text">ThreatWatch</div>
+      <div class="logo-sub">Security Operations Center</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="live-badge">
+      <div class="live-dot"></div>
+      LIVE
+    </div>
+    <span class="threat-level-badge elevated">THREAT: ELEVATED</span>
+    <div class="header-time" id="clock">2024-01-15 · 14:23:07 UTC</div>
+  </div>
+</header>
+
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="nav-section">
+      <div class="nav-label">Operations</div>
+      <div class="nav-item active">
+        <span class="nav-icon">◈</span> Dashboard
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">⚡</span> Alert Queue
+        <span class="nav-badge">23</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">⬡</span> Investigations
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">◎</span> Hunt
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Intelligence</div>
+      <div class="nav-item">
+        <span class="nav-icon">◉</span> Threat Intel
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">⊕</span> IOC Manager
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">⋈</span> MITRE ATT&CK
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Detection</div>
+      <div class="nav-item">
+        <span class="nav-icon">◇</span> Sigma Rules
+        <span class="nav-badge" style="background:rgba(0,153,255,0.2);color:var(--info);">12</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">⊞</span> Playbooks
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">◌</span> Reports
+      </div>
+    </div>
+    <div style="margin-top: auto;">
+      <div class="sidebar-stat">
+        <div class="sidebar-stat-label">MTTD</div>
+        <div class="sidebar-stat-value">4.2<span style="font-size:12px;color:var(--text3)"> min</span></div>
+      </div>
+      <div class="sidebar-stat">
+        <div class="sidebar-stat-label">MTTR</div>
+        <div class="sidebar-stat-value">18<span style="font-size:12px;color:var(--text3)"> min</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main">
+
+    <!-- METRICS -->
+    <div class="metrics-row">
+      <div class="metric-card critical">
+        <div class="metric-label">Critical Alerts</div>
+        <div class="metric-value" id="crit-count">7</div>
+        <div class="metric-change up">▲ 3 vs yesterday</div>
+        <div class="sparkline" id="spark1"></div>
+      </div>
+      <div class="metric-card high">
+        <div class="metric-label">High Severity</div>
+        <div class="metric-value" id="high-count">23</div>
+        <div class="metric-change up">▲ 8 vs yesterday</div>
+        <div class="sparkline" id="spark2"></div>
+      </div>
+      <div class="metric-card medium">
+        <div class="metric-label">Medium</div>
+        <div class="metric-value">61</div>
+        <div class="metric-change" style="color:var(--text3)">→ stable</div>
+        <div class="sparkline" id="spark3"></div>
+      </div>
+      <div class="metric-card low">
+        <div class="metric-label">IOCs Matched</div>
+        <div class="metric-value">142</div>
+        <div class="metric-change down">▼ 5 vs yesterday</div>
+        <div class="sparkline" id="spark4"></div>
+      </div>
+      <div class="metric-card info">
+        <div class="metric-label">Events/sec</div>
+        <div class="metric-value" id="eps">8.3k</div>
+        <div class="metric-change" style="color:var(--text3)">24hr avg: 7.1k</div>
+        <div class="sparkline" id="spark5"></div>
+      </div>
+    </div>
+
+    <!-- ALERT QUEUE + TIMELINE -->
+    <div class="grid-3">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Active Alert Queue</div>
+          <div class="panel-actions">
+            <button class="btn-xs">Filter</button>
+            <button class="btn-xs">Export</button>
+          </div>
+        </div>
+        <table class="alert-table">
+          <thead>
+            <tr>
+              <th>Severity</th>
+              <th>Alert Name</th>
+              <th>Source</th>
+              <th>Status</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="sev critical"><span class="sev-dot"></span>Critical</span></td>
+              <td style="color:var(--text);font-size:11px;">Ransomware Staging Detected</td>
+              <td style="font-size:11px;">EDR · WIN-DC01</td>
+              <td><span class="status new"><span class="status-dot"></span>New</span></td>
+              <td style="color:var(--text3);font-size:10px;">00:02:14</td>
+            </tr>
+            <tr>
+              <td><span class="sev critical"><span class="sev-dot"></span>Critical</span></td>
+              <td style="color:var(--text);font-size:11px;">Lateral Movement via PsExec</td>
+              <td style="font-size:11px;">SIEM · LAB-SRV04</td>
+              <td><span class="status inv"><span class="status-dot"></span>Inv.</span></td>
+              <td style="color:var(--text3);font-size:10px;">00:18:32</td>
+            </tr>
+            <tr>
+              <td><span class="sev high"><span class="sev-dot"></span>High</span></td>
+              <td style="color:var(--text);font-size:11px;">PowerShell AMSI Bypass</td>
+              <td style="font-size:11px;">SIEM · USR-PC042</td>
+              <td><span class="status new"><span class="status-dot"></span>New</span></td>
+              <td style="color:var(--text3);font-size:10px;">00:24:05</td>
+            </tr>
+            <tr>
+              <td><span class="sev high"><span class="sev-dot"></span>High</span></td>
+              <td style="color:var(--text);font-size:11px;">Credential Dump — LSASS</td>
+              <td style="font-size:11px;">EDR · WIN-WS011</td>
+              <td><span class="status inv"><span class="status-dot"></span>Inv.</span></td>
+              <td style="color:var(--text3);font-size:10px;">00:41:18</td>
+            </tr>
+            <tr>
+              <td><span class="sev high"><span class="sev-dot"></span>High</span></td>
+              <td style="color:var(--text);font-size:11px;">C2 Beacon — Cobalt Strike</td>
+              <td style="font-size:11px;">FW · DMZ-01</td>
+              <td><span class="status new"><span class="status-dot"></span>New</span></td>
+              <td style="color:var(--text3);font-size:10px;">01:05:44</td>
+            </tr>
+            <tr>
+              <td><span class="sev medium"><span class="sev-dot"></span>Medium</span></td>
+              <td style="color:var(--text);font-size:11px;">Suspicious Scheduled Task</td>
+              <td style="font-size:11px;">SIEM · WIN-WS008</td>
+              <td><span class="status closed"><span class="status-dot"></span>Closed</span></td>
+              <td style="color:var(--text3);font-size:10px;">02:14:09</td>
+            </tr>
+            <tr>
+              <td><span class="sev medium"><span class="sev-dot"></span>Medium</span></td>
+              <td style="color:var(--text);font-size:11px;">DNS Tunneling Detected</td>
+              <td style="font-size:11px;">FW · GW-EDGE01</td>
+              <td><span class="status inv"><span class="status-dot"></span>Inv.</span></td>
+              <td style="color:var(--text3);font-size:10px;">02:58:21</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Investigation Timeline</div>
+          <div class="panel-actions">
+            <span class="tag tag-red">INC-2024-0441</span>
+          </div>
+        </div>
+        <div class="timeline">
+          <div class="tl-item">
+            <div class="tl-dot" style="background:var(--critical)"></div>
+            <div class="tl-content">
+              <div class="tl-title">Ransomware staging files detected</div>
+              <div class="tl-meta">14:21 UTC · WIN-DC01 · <span class="tl-tag">T1486</span></div>
+            </div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-dot" style="background:var(--orange)"></div>
+            <div class="tl-content">
+              <div class="tl-title">PsExec lateral movement from DC01</div>
+              <div class="tl-meta">14:05 UTC · LAB-SRV04 · <span class="tl-tag">T1570</span></div>
+            </div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-dot" style="background:var(--yellow)"></div>
+            <div class="tl-content">
+              <div class="tl-title">LSASS credential dump via procdump</div>
+              <div class="tl-meta">13:42 UTC · WIN-DC01 · <span class="tl-tag">T1003.001</span></div>
+            </div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-dot" style="background:var(--orange)"></div>
+            <div class="tl-content">
+              <div class="tl-title">Cobalt Strike beacon — 91.108.4.190</div>
+              <div class="tl-meta">13:18 UTC · WIN-DC01 · <span class="tl-tag">T1071.001</span></div>
+            </div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-dot" style="background:var(--yellow)"></div>
+            <div class="tl-content">
+              <div class="tl-title">AMSI bypass via PowerShell</div>
+              <div class="tl-meta">12:54 UTC · USR-PC042 · <span class="tl-tag">T1562.001</span></div>
+            </div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-dot" style="background:var(--info)"></div>
+            <div class="tl-content">
+              <div class="tl-title">Spearphishing email delivered</div>
+              <div class="tl-meta">09:31 UTC · MAIL-GW · <span class="tl-tag">T1566.001</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHARTS ROW -->
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Alert Volume — 24hr</div>
+          <div class="panel-actions">
+            <button class="btn-xs" onclick="toggleChart()">Toggle View</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="chart-wrap">
+            <canvas id="alertVolumeChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Attack Source Countries</div>
+        </div>
+        <div class="geo-list" id="geoList"></div>
+      </div>
+    </div>
+
+    <!-- MITRE ATT&CK -->
+    <div class="grid-full">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">MITRE ATT&CK Coverage — Current Incident</div>
+          <div class="panel-actions">
+            <span style="font-size:10px;color:var(--text3)">
+              <span style="display:inline-block;width:8px;height:8px;background:rgba(255,71,87,0.5);border-radius:1px;margin-right:4px;"></span>High
+              <span style="display:inline-block;width:8px;height:8px;background:rgba(255,107,53,0.4);border-radius:1px;margin:0 4px 0 8px;"></span>Med
+              <span style="display:inline-block;width:8px;height:8px;background:rgba(255,211,42,0.3);border-radius:1px;margin:0 4px 0 8px;"></span>Low
+            </span>
+          </div>
+        </div>
+        <div class="mitre-grid" id="mitreGrid"></div>
+      </div>
+    </div>
+
+    <!-- IOC + SIGMA + RISK -->
+    <div class="grid-2">
+      <div class="panel">
+        <div class="tabs">
+          <div class="tab active" onclick="switchTab(this,'ioc')">IOC Feed</div>
+          <div class="tab" onclick="switchTab(this,'sigma')">Sigma Rule</div>
+        </div>
+
+        <div id="tab-ioc">
+          <div class="ioc-row">
+            <span class="ioc-type">IP</span>
+            <span class="ioc-value">91.108.4.190</span>
+            <span class="ioc-tag">C2 · Cobalt Strike</span>
+          </div>
+          <div class="ioc-row">
+            <span class="ioc-type">IP</span>
+            <span class="ioc-value">185.220.101.47</span>
+            <span class="ioc-tag">TOR Exit Node</span>
+          </div>
+          <div class="ioc-row">
+            <span class="ioc-type">HASH</span>
+            <span class="ioc-value">4d9f6e1a8c3b2...</span>
+            <span class="ioc-tag">Ransomware</span>
+          </div>
+          <div class="ioc-row">
+            <span class="ioc-type">DOMAIN</span>
+            <span class="ioc-value">update-cdn[.]xyz</span>
+            <span class="ioc-tag">C2 Domain</span>
+          </div>
+          <div class="ioc-row">
+            <span class="ioc-type">HASH</span>
+            <span class="ioc-value">a8b3c9f2e1d44...</span>
+            <span class="ioc-tag">Loader · Bumblebee</span>
+          </div>
+          <div class="ioc-row">
+            <span class="ioc-type">URL</span>
+            <span class="ioc-value">update-cdn[.]xyz/a/gate</span>
+            <span class="ioc-tag">Phishing</span>
+          </div>
+        </div>
+
+        <div id="tab-sigma" style="display:none;">
+          <div class="sigma-box">
+<span class="sig-comment"># Detects AMSI bypass via PowerShell</span>
+<br><span class="sig-key">title</span>: <span class="sig-str">PowerShell AMSI Bypass Attempt</span>
+<br><span class="sig-key">id</span>: <span class="sig-val">e7a3c91f-2b44-4d8e-a6f1</span>
+<br><span class="sig-key">status</span>: <span class="sig-str">experimental</span>
+<br><span class="sig-key">level</span>: <span class="sig-val">high</span>
+<br><span class="sig-key">logsource</span>:
+<br>  <span class="sig-key">category</span>: <span class="sig-str">process_creation</span>
+<br>  <span class="sig-key">product</span>: <span class="sig-str">windows</span>
+<br><span class="sig-key">detection</span>:
+<br>  <span class="sig-key">selection</span>:
+<br>    <span class="sig-key">Image|endswith</span>: <span class="sig-str">'\powershell.exe'</span>
+<br>    <span class="sig-key">CommandLine|contains|all</span>:
+<br>      - <span class="sig-str">'AmsiInitFailed'</span>
+<br>      - <span class="sig-str">'Reflection.Assembly'</span>
+<br>  <span class="sig-key">condition</span>: <span class="sig-str">selection</span>
+<br><span class="sig-key">tags</span>:
+<br>  - <span class="sig-val">attack.defense_evasion</span>
+<br>  - <span class="sig-val">attack.t1562.001</span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="panel" style="margin-bottom:16px;">
+          <div class="panel-header">
+            <div class="panel-title">Risk Score — WIN-DC01</div>
+            <span class="tag tag-red">Critical Asset</span>
+          </div>
+          <div class="score-ring-wrap">
+            <div class="score-ring">
+              <svg width="80" height="80" viewBox="0 0 80 80">
+                <circle cx="40" cy="40" r="34" fill="none" stroke="#1c2030" stroke-width="8"/>
+                <circle cx="40" cy="40" r="34" fill="none" stroke="#ff6b35" stroke-width="8"
+                  stroke-dasharray="213.6"
+                  stroke-dashoffset="47" stroke-linecap="round"/>
+              </svg>
+              <div class="score-ring-val">
+                <div class="score-num">78</div>
+                <div class="score-max">/100</div>
+              </div>
+            </div>
+            <div class="score-details">
+              <div class="score-detail-item"><span class="score-detail-label">Exposure</span><span class="score-detail-val" style="color:var(--red)">Critical</span></div>
+              <div class="score-detail-item"><span class="score-detail-label">Impact</span><span class="score-detail-val" style="color:var(--orange)">High</span></div>
+              <div class="score-detail-item"><span class="score-detail-label">Likelihood</span><span class="score-detail-val" style="color:var(--yellow)">Medium</span></div>
+              <div class="score-detail-item"><span class="score-detail-label">Asset Value</span><span class="score-detail-val" style="color:var(--accent)">Domain Ctrl</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">IR Playbook Progress</div>
+            <span class="tag tag-green">4/7 Complete</span>
+          </div>
+          <div class="playbook">
+            <div class="pb-step">
+              <div class="pb-num done">✓</div>
+              <div><div class="pb-title">Alert Triage & Classification</div><div class="pb-desc">Severity confirmed: Critical · INC-2024-0441</div></div>
+            </div>
+            <div class="pb-step">
+              <div class="pb-num done">✓</div>
+              <div><div class="pb-title">Host Isolation — WIN-DC01</div><div class="pb-desc">Network isolation applied via EDR</div></div>
+            </div>
+            <div class="pb-step">
+              <div class="pb-num done">✓</div>
+              <div><div class="pb-title">Evidence Collection</div><div class="pb-desc">Memory dump, prefetch, event logs collected</div></div>
+            </div>
+            <div class="pb-step">
+              <div class="pb-num done">✓</div>
+              <div><div class="pb-title">IOC Extraction & Blocking</div><div class="pb-desc">6 IOCs pushed to FW & EDR blocklist</div></div>
+            </div>
+            <div class="pb-step">
+              <div class="pb-num" style="color:var(--yellow);border-color:var(--yellow)">5</div>
+              <div><div class="pb-title" style="color:var(--yellow)">Threat Hunting — Lateral Movement</div><div class="pb-desc" style="color:var(--text3)">In progress · checking 14 hosts</div></div>
+            </div>
+            <div class="pb-step">
+              <div class="pb-num">6</div>
+              <div><div class="pb-title" style="color:var(--text3)">Eradication & Recovery</div><div class="pb-desc">Pending</div></div>
+            </div>
+            <div class="pb-step">
+              <div class="pb-num">7</div>
+              <div><div class="pb-title" style="color:var(--text3)">Post-Incident Report</div><div class="pb-desc">Pending</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LIVE LOG -->
+    <div class="grid-full">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Live Event Stream</div>
+          <div class="panel-actions">
+            <button class="btn-xs" onclick="toggleStream()">⏸ Pause</button>
+            <span class="live-badge"><span class="live-dot"></span>STREAMING</span>
+          </div>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <div class="terminal" id="terminal"></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// CLOCK
+function updateClock() {
+  const now = new Date();
+  const d = now.toISOString().replace('T', ' · ').split('.')[0] + ' UTC';
+  document.getElementById('clock').textContent = d;
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// SPARKLINES
+function createSparkline(id, data, color) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const max = Math.max(...data);
+  data.forEach(v => {
+    const bar = document.createElement('div');
+    bar.className = 'spark-bar';
+    const h = Math.max(2, Math.round((v / max) * 22));
+    bar.style.cssText = `height:${h}px;background:${color};opacity:${0.3 + (v/max)*0.7}`;
+    el.appendChild(bar);
+  });
+}
+
+createSparkline('spark1', [2,4,1,3,5,2,7], 'var(--critical)');
+createSparkline('spark2', [10,14,11,18,16,20,23], 'var(--high)');
+createSparkline('spark3', [55,60,58,65,62,59,61], 'var(--yellow)');
+createSparkline('spark4', [160,155,148,152,145,140,142], 'var(--accent)');
+createSparkline('spark5', [7100,7400,7200,8100,7800,8300,8300], 'var(--info)');
+
+// CHART.JS
+const hours = ['00','01','02','03','04','05','06','07','08','09','10','11','12','13','14','15','16','17','18','19','20','21','22','23'];
+const critData = [1,0,1,0,0,0,0,2,1,3,2,4,3,5,7,0,0,0,0,0,0,0,0,0];
+const highData = [3,2,1,2,1,1,2,5,8,10,9,12,11,18,23,0,0,0,0,0,0,0,0,0];
+const medData  = [8,6,5,4,3,2,4,12,18,22,20,25,30,38,61,0,0,0,0,0,0,0,0,0];
+
+const ctx = document.getElementById('alertVolumeChart').getContext('2d');
+let chartType = 'bar';
+let alertChart = new Chart(ctx, {
+  type: chartType,
+  data: {
+    labels: hours,
+    datasets: [
+      { label: 'Critical', data: critData, backgroundColor: 'rgba(255,71,87,0.6)', borderColor: '#ff4757', borderWidth: 1 },
+      { label: 'High', data: highData, backgroundColor: 'rgba(255,107,53,0.5)', borderColor: '#ff6b35', borderWidth: 1 },
+      { label: 'Medium', data: medData, backgroundColor: 'rgba(255,211,42,0.3)', borderColor: '#ffd32a', borderWidth: 1 }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: '#8892a4', font: { size: 10, family: 'JetBrains Mono' }, boxWidth: 10 } } },
+    scales: {
+      x: { stacked: true, ticks: { color: '#4a5568', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+      y: { stacked: true, ticks: { color: '#4a5568', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } }
+    }
+  }
+});
+
+function toggleChart() {
+  chartType = chartType === 'bar' ? 'line' : 'bar';
+  alertChart.destroy();
+  alertChart = new Chart(ctx, {
+    type: chartType,
+    data: {
+      labels: hours,
+      datasets: [
+        { label: 'Critical', data: critData, backgroundColor: 'rgba(255,71,87,0.2)', borderColor: '#ff4757', borderWidth: 2, tension: 0.3, fill: chartType==='line' },
+        { label: 'High', data: highData, backgroundColor: 'rgba(255,107,53,0.2)', borderColor: '#ff6b35', borderWidth: 2, tension: 0.3, fill: chartType==='line' },
+        { label: 'Medium', data: medData, backgroundColor: 'rgba(255,211,42,0.1)', borderColor: '#ffd32a', borderWidth: 2, tension: 0.3, fill: chartType==='line' }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#8892a4', font: { size: 10, family: 'JetBrains Mono' }, boxWidth: 10 } } },
+      scales: {
+        x: { stacked: chartType==='bar', ticks: { color: '#4a5568', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { stacked: chartType==='bar', ticks: { color: '#4a5568', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } }
+      }
+    }
+  });
+}
+
+// GEO
+const geoData = [
+  { flag: '🇨🇳', country: 'China', count: 2841, pct: 100 },
+  { flag: '🇷🇺', country: 'Russia', count: 1924, pct: 68 },
+  { flag: '🇺🇸', country: 'United States', count: 876, pct: 31 },
+  { flag: '🇳🇱', country: 'Netherlands', count: 654, pct: 23 },
+  { flag: '🇮🇳', country: 'India', count: 412, pct: 15 },
+  { flag: '🇧🇷', country: 'Brazil', count: 287, pct: 10 },
+];
+
+const geoList = document.getElementById('geoList');
+geoData.forEach(g => {
+  const el = document.createElement('div');
+  el.className = 'geo-item';
+  el.innerHTML = `
+    <span class="geo-flag">${g.flag}</span>
+    <div class="geo-bar-wrap">
+      <div class="geo-label"><span>${g.country}</span></div>
+      <div class="geo-bar"><div class="geo-bar-fill" style="width:0%" data-w="${g.pct}%"></div></div>
+    </div>
+    <span class="geo-count">${g.count.toLocaleString()}</span>
+  `;
+  geoList.appendChild(el);
+});
+
+setTimeout(() => {
+  document.querySelectorAll('.geo-bar-fill').forEach(b => b.style.width = b.dataset.w);
+}, 200);
+
+// MITRE ATT&CK
+const tactics = [
+  { name: 'Recon', techs: ['T1566', 'T1598', ''] },
+  { name: 'Resource Dev', techs: ['T1587', '', ''] },
+  { name: 'Initial Access', techs: ['T1566.001', 'T1190', 'T1195'] },
+  { name: 'Execution', techs: ['T1059.001', 'T1059.003', 'T1204'] },
+  { name: 'Persistence', techs: ['T1053', 'T1547', ''] },
+  { name: 'Priv Esc', techs: ['T1068', 'T1055', ''] },
+  { name: 'Defense Eva', techs: ['T1562.001', 'T1027', 'T1070'] },
+  { name: 'Cred Access', techs: ['T1003.001', 'T1110', ''] },
+  { name: 'Discovery', techs: ['T1083', 'T1018', 'T1082'] },
+  { name: 'Lat Movement', techs: ['T1570', 'T1021', ''] },
+  { name: 'Impact', techs: ['T1486', 'T1490', ''] },
+];
+
+const activeHigh = ['T1566.001','T1059.001','T1562.001','T1003.001','T1570','T1486'];
+const activeMed  = ['T1566','T1053','T1027','T1021','T1490','T1055'];
+const activeLow  = ['T1587','T1204','T1068','T1083','T1018','T1082','T1547'];
+
+const mitreGrid = document.getElementById('mitreGrid');
+tactics.forEach(t => {
+  const col = document.createElement('div');
+  col.className = 'mitre-tactic';
+  col.innerHTML = `<div class="mitre-tactic-name">${t.name}</div>`;
+  t.techs.forEach(tech => {
+    if (!tech) { col.innerHTML += `<div style="height:28px"></div>`; return; }
+    let cls = '';
+    if (activeHigh.includes(tech)) cls = 'active-high';
+    else if (activeMed.includes(tech)) cls = 'active-med';
+    else if (activeLow.includes(tech)) cls = 'active-low';
+    col.innerHTML += `<div class="mitre-tech ${cls}" title="${tech}">${tech}</div>`;
+  });
+  mitreGrid.appendChild(col);
+});
+
+// TABS
+function switchTab(el, tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-ioc').style.display = tab === 'ioc' ? 'block' : 'none';
+  document.getElementById('tab-sigma').style.display = tab === 'sigma' ? 'block' : 'none';
+}
+
+// LIVE LOG
+const events = [
+  ['[CRIT]', 'crit', 'WIN-DC01', 'Ransomware file staging: C:\\ProgramData\\svhost32.exe', '14:23:07'],
+  ['[HIGH]', 'high', 'LAB-SRV04', 'Inbound PsExec from 10.0.1.50 — remote execution', '14:22:51'],
+  ['[HIGH]', 'high', 'WIN-DC01', 'LSASS memory read by unknown process (PID 4812)', '14:22:33'],
+  ['[MED]',  'med',  'GW-EDGE01', 'DNS query to update-cdn[.]xyz — blocked by TI feed', '14:22:18'],
+  ['[HIGH]', 'high', 'USR-PC042', 'PowerShell AMSI bypass detected — AmsiInitFailed', '14:21:55'],
+  ['[MED]',  'med',  'WIN-WS011', 'Scheduled task created: \\Microsoft\\Update\\svcupd', '14:21:40'],
+  ['[CRIT]', 'crit', 'DMZ-FW01',  'Outbound C2 beacon: 91.108.4.190:443 — Cobalt Strike JA3', '14:21:22'],
+  ['[INFO]', 'info', 'MAIL-GW',   'Spearphishing email quarantined — malicious macro', '14:20:11'],
+];
+
+let streaming = true;
+let logIdx = 0;
+const terminal = document.getElementById('terminal');
+
+function addLogLine() {
+  if (!streaming) return;
+  const e = events[logIdx % events.length];
+  const div = document.createElement('div');
+  div.className = 'term-line';
+  const sevClass = e[1] === 'crit' ? 'term-sev-c' : e[1] === 'high' ? 'term-sev-h' : e[1] === 'med' ? 'term-sev-m' : 'sig-comment';
+  div.innerHTML = `<span class="term-time">${e[4]}</span> <span class="${sevClass}">${e[0]}</span> <span class="term-host">${e[2]}</span> <span class="term-msg">— ${e[3]}</span>`;
+  terminal.appendChild(div);
+  while (terminal.children.length > 20) terminal.removeChild(terminal.firstChild);
+  terminal.scrollTop = terminal.scrollHeight;
+  logIdx++;
+}
+
+events.forEach(() => addLogLine());
+setInterval(addLogLine, 2200);
+
+function toggleStream() {
+  streaming = !streaming;
+  event.target.textContent = streaming ? '⏸ Pause' : '▶ Resume';
+}
+
+// EPS counter jitter
+setInterval(() => {
+  const eps = (7800 + Math.random() * 1200);
+  document.getElementById('eps').textContent = (eps / 1000).toFixed(1) + 'k';
+}, 3000);
+</script>
+</body>
+</html>
